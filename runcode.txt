@@ -1,0 +1,10 @@
+python autodl-tmp/3D-convolutional-speaker-recognition-pytorch-master/code/1-development/train_softmax.py
+python autodl-tmp/3D-convolutional-speaker-recognition-pytorch-master/code/2-enrollment/enrollment.py
+
+程序终止，从某个记录的epoch恢复
+python autodl-tmp/3D-convolutional-speaker-recognition-pytorch-master/code/1-development/train_softmax.py --resume ~/weights/net_epoch_30.pth
+python code/1-development/train_softmax.py --resume C:/Users/user/weights/net_final.pth
+
+AutoDL出现错误：
+ImportError: /usr/lib/x86_64-linux-gnu/libstdc++.so.6: version `GLIBCXX_3.4.29' not found
+export LD_LIBRARY_PATH=/root/miniconda3/lib
