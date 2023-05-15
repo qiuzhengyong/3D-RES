@@ -40,7 +40,8 @@ parser.add_argument('--momentum', default=0.9, type=float, help='momentum')
 parser.add_argument('--weight_decay', default=5e-4, type=float, help='Weight decay for SGD')
 parser.add_argument('--gamma', default=0.1, type=float, help='Gamma update for SGD')
 
-parser.add_argument('--batch_size', default=5, type=int, help='Batch size for training')
+parser.add_argument('--batch_size', default=40, type=int, help='Batch size for training')
+# parser.add_argument('--batch_size', default=5, type=int, help='Batch size for training')
 parser.add_argument('--basenet', default=None, help='pretrained base model')
 parser.add_argument('--load_weights', default='../1-development/weights/net_final.pth', type=str, help='Load weights')
 # parser.add_argument('--load_weights', default='~/weights/net_final.pth', type=str, help='Load weights')
@@ -161,9 +162,12 @@ class Net(nn.Module):
         x = self.conv41_activation(self.conv41_bn(self.conv41(x)))  # 第七层卷积
         x = self.rblock41(x)  # 第七层残差
         x = x.view(-1, 128 * 4 * 6 * 2)
-        x = torch.nn.functional.normalize(x, p=2, dim=1, eps=1e-12)
-        x = self.fc1_activation(self.fc1(x))
-        x = self.fc2(x)
+        # x = torch.nn.functional.normalize(x, p=2, dim=1, eps=1e-12)
+        x=self.fc1(x)
+        x=self.fc1_bn(x)
+        # x=self.fc1_activation(x)
+        # x = self.fc1_activation(self.fc1(x))
+        # x = self.fc2(x)
         return x
 
 
@@ -206,8 +210,8 @@ running_loss = 0.0
 num_enrollment = 200
 # output_numpy = np.zeros(shape=[num_enrollment,5,40],dtype=np.float32)
 # model = np.zeros(shape=[5,40],dtype=np.float32)
-output_numpy = np.zeros(shape=[num_enrollment,args.batch_size,40],dtype=np.float32)
-model = np.zeros(shape=[args.batch_size,40],dtype=np.float32)
+output_numpy = np.zeros(shape=[num_enrollment,40,128],dtype=np.float32)
+model = np.zeros(shape=[40,128],dtype=np.float32)
 
 
 for i in range(num_enrollment):
@@ -216,6 +220,8 @@ for i in range(num_enrollment):
         # get the inputs
         inputs, labels = data
 
+        if(labels.shape[0]<args.batch_size):
+            break
         # wrap them in Variable
         if args.cuda:
             inputs, labels = Variable(inputs.cuda()), Variable(labels.cuda())
@@ -227,7 +233,10 @@ for i in range(num_enrollment):
         t0 = time.time()
         outputs = net(inputs)
         output_numpy[i] = outputs.cpu().data.numpy()
-
+        for index, label in enumerate(labels):
+            enrollment_model = output_numpy[i]
+            enrollment_model = Normalizer(norm='l2').fit_transform(enrollment_model)
+            model[label] += enrollment_model[index]
         # zero the parameter gradients
         optimizer.zero_grad()
 
@@ -272,10 +281,10 @@ for i in range(num_enrollment):
 torch.save(net.state_dict(), ".//weights//net_final.pth")
 
 
-for i in range(output_numpy.shape[0]):
-    enrollment_model = output_numpy[i]
-    enrollment_model = Normalizer(norm='l2').fit_transform(enrollment_model)
-    model += enrollment_model
+# for i in range(output_numpy.shape[0]):
+#     enrollment_model = output_numpy[i]
+#     enrollment_model = Normalizer(norm='l2').fit_transform(enrollment_model)
+#     model += enrollment_model
 model = model / float(num_enrollment)
 
 # Save the final model at the end of training.

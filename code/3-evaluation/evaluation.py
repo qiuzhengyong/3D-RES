@@ -17,8 +17,8 @@ import datetime
 from sklearn.preprocessing import Normalizer
 
 sys.path.insert(0, '../InputPipeline')
-# from DataProviderEvaluation import   AudioDataset,CMVN, Feature_Cube, ToOutput
-from DataProviderEnrollment import AudioDataset,CMVN, Feature_Cube, ToOutput
+from DataProviderEvaluation import   AudioDataset,CMVN, Feature_Cube, ToOutput
+# from DataProviderEnrollment import AudioDataset,CMVN, Feature_Cube, ToOutput
 from torch.autograd import Variable
 import torch.nn as nn
 import torch.nn.functional as F
@@ -35,7 +35,8 @@ def str2bool(v):
 
 
 parser = argparse.ArgumentParser(description='Creating background model in development phase')
-parser.add_argument('--batch_size', default=5, type=int, help='Batch size for training')
+# parser.add_argument('--batch_size', default=5, type=int, help='Batch size for training')
+parser.add_argument('--batch_size', default=40, type=int, help='Batch size for training')
 parser.add_argument('--basenet', default=None, help='pretrained base model')
 parser.add_argument('--load_weights', default='../2-enrollment/weights/net_final.pth', type=str, help='Load weights')
 # parser.add_argument('--load_weights', default='../2-enrollment/weights/model_best.pth', type=str, help='Load weights')
@@ -46,8 +47,8 @@ parser.add_argument('--num_workers', default=0, type=int, help='Number of worker
 parser.add_argument('--cuda', default=True, type=str2bool, help='Use cuda to train model')
 parser.add_argument('--batch_per_log', default=10, type=int, help='Print the log at what number of batches?')
 parser.add_argument('--evaluation_path',
-                    # default=os.path.expanduser('D:/voxceleb_data/voxceleb1_evaluation.txt'),
-                    default=os.path.expanduser('D:/voxceleb_data/voxceleb1_enrollment.txt'),
+                    default=os.path.expanduser('D:/voxceleb_data/voxceleb1_evaluation.txt'),
+                    # default=os.path.expanduser('D:/voxceleb_data/voxceleb1_enrollment.txt'),
                     help='The file names for evaluation phase')
 parser.add_argument('--save_folder', default='model', help='Location to save models')
 parser.add_argument('--audio_dir',
@@ -156,9 +157,11 @@ class Net(nn.Module):
         x = self.conv41_activation(self.conv41_bn(self.conv41(x)))  # 第七层卷积
         x = self.rblock41(x)  # 第七层残差
         x = x.view(-1, 128 * 4 * 6 * 2)
-        x = torch.nn.functional.normalize(x, p=2, dim=1, eps=1e-12)
-        x = self.fc1_activation(self.fc1(x))
-        x = self.fc2(x)
+        # x = torch.nn.functional.normalize(x, p=2, dim=1, eps=1e-12)
+        x = self.fc1(x)
+        x = self.fc1_bn(x)
+        # x = self.fc1_activation(x)
+        # x = self.fc2(x)
         # x = self.fc1_bn(self.fc1(x))
         # x = F.relu(self.conv2_bn(self.conv42(x))
         return x
@@ -202,7 +205,8 @@ num_batches = len(dataloader)
 
 running_loss = 0.0
 running_accuracy = 0.0
-feature_vector = np.zeros((num_batches * args.batch_size, 40), dtype=np.float32)
+# feature_vector = np.zeros((num_batches * args.batch_size, 40), dtype=np.float32)
+feature_vector = np.zeros((num_batches * args.batch_size, 128), dtype=np.float32)
 label_vector = np.zeros((num_batches * args.batch_size), dtype=np.float32)
 
 for iteration, data in enumerate(dataloader, 0):
@@ -259,8 +263,8 @@ for iteration, data in enumerate(dataloader, 0):
         running_loss = 0.0
 
 # Print the averaged accuracy for epoch
-# print('The averaged accuracy: {:.4f}.\n'.format(100.0 * running_accuracy / num_batches), end=' ')
-print('The averaged accuracy: {:.4f}.\n'.format(100.0 * running_accuracy / iteration), end=' ')
+print('The averaged accuracy: {:.4f}.\n'.format(100.0 * running_accuracy / num_batches), end=' ')
+# print('The averaged accuracy: {:.4f}.\n'.format(100.0 * running_accuracy / iteration), end=' ')
 
 
 
