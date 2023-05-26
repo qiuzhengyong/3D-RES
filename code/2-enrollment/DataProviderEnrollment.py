@@ -73,7 +73,7 @@ class AudioDataset():
                 # list_files.append(random.choice(list_files_each_class))
                 NUM=0
                 while(NUM<20):
-                    if(NUM>=len(list_files_each_class)):
+                    """if(NUM>=len(list_files_each_class)):
                         ex=0
                         # 数量不足20，重复前面的元素
                         while(ex+NUM<20):
@@ -83,6 +83,9 @@ class AudioDataset():
                     else:
                         list_files.append(list_files_each_class[NUM])
                         NUM+=1
+                        """
+                    list_files.append(random.choice(list_files_each_class))
+                    NUM+=1
                 list_files_each_class[:] = []
 
                 # Get the path to the sound file
@@ -109,7 +112,7 @@ class AudioDataset():
         # list_files.append(random.choice(list_files_each_class))
         NUM = 0
         while (NUM < 20):
-            if (NUM >= len(list_files_each_class)):
+            """if (NUM >= len(list_files_each_class)):
                 ex = 0
                 # 数量不足20，重复前面的元素
                 while (ex + NUM < 20):
@@ -119,6 +122,9 @@ class AudioDataset():
             else:
                 list_files.append(list_files_each_class[NUM])
                 NUM += 1
+                """
+            list_files.append(random.choice(list_files_each_class))
+            NUM+=1;
         list_files_each_class[:] = []
 
 

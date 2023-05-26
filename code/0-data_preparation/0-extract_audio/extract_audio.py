@@ -5,6 +5,7 @@ import numpy as np
 import argparse
 
 # Required directories
+FLOAT = float(line_split[1])
 dir_text = os.path.expanduser('D:/voxceleb_data/voxceleb1_txt')
 dir_audio = os.path.expanduser('D:/voxceleb_data/voxceleb1_audio')
 root_path = os.path.expanduser('D:/voxceleb/wav')
@@ -76,7 +77,7 @@ def extract():
                     file_output_path = os.path.join(dir_output_path,os.path.basename(line_split[0])) + '.wav'
 
                     # Start of the speech by the POI.
-                    start = float(line_split[1])
+                    start = FLOAT
 
                     # End of the speech by the POI.
                     end = float(line_split[2])

@@ -53,6 +53,7 @@ parser.add_argument('--audio_dir', default=os.path.expanduser('D:/voxceleb_data/
 # Finetuning & Resume Flags #
 #############################
 parser.add_argument('--resume', default=None, type=str,
+# parser.add_argument('--resume', default='weights/netepoch_180.pth', type=str,
                     help="Resume from checkpoint. ex: os.path.expanduser('~/weights/net_final.pth')")
 parser.add_argument('--fine_tuning', default=None, type=str,
                     help="Fine_tuning from checkpoint ex: os.path.expanduser('~/weights/net_epoch_10.pth')")
@@ -77,7 +78,7 @@ parser.add_argument('--epochs_per_lr_drop', default=450, type=float,
 ##################
 parser.add_argument('--batch_size', default=128, type=int, help='Batch size for training')
 parser.add_argument('--num_workers', default=0, type=int, help='Number of workers used in dataloading')
-parser.add_argument('--num_epoch', default=100, type=int, help='Number of training iterations')
+parser.add_argument('--num_epoch', default=200, type=int, help='Number of training iterations')
 parser.add_argument('--cuda', default=True, type=str2bool, help='Use cuda to train model')
 parser.add_argument('--save_folder', default=os.path.expanduser('weights'), help='Location to save checkpoint models')
 parser.add_argument('--epochs_per_save', default=10, type=int,
@@ -147,14 +148,47 @@ trainloader = torch.utils.data.DataLoader(development_data, batch_size=args.batc
 # item = dataiter.next()
 # images, labels = item
 
+#########################
+### Inception Networks ##
+#########################
+# out_channels格式 [32, 32, 32, 32, 32, 32]
+class InceptionModule(nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super(InceptionModule, self).__init__()
+        # 第一个分支，1x1卷积
+        self.branch1x1 = nn.Conv3d(in_channels, out_channels, kernel_size=1)
+
+        # 第二个分支，1x1卷积后接3x3卷积
+        self.branch3x3 = nn.Sequential(
+            nn.Conv3d(in_channels, out_channels, kernel_size=1),
+            nn.Conv3d(out_channels, out_channels, kernel_size=3, padding=1)
+        )
+
+        # 第三个分支，1x1卷积后接5x5卷积
+        self.branch5x5 = nn.Sequential(
+            nn.Conv3d(in_channels, out_channels, kernel_size=1),
+            nn.Conv3d(out_channels, out_channels, kernel_size=5, padding=2)
+        )
+
+        # 第四个分支，3x3最大池化后接1x1卷积
+        self.branch_pool = nn.Sequential(
+            nn.MaxPool3d(kernel_size=3, stride=1, padding=1),
+            nn.Conv3d(in_channels, out_channels, kernel_size=1)
+        )
+
+    def forward(self, x):
+        out1x1 = self.branch1x1(x)
+        out3x3 = self.branch3x3(x)
+        out5x5 = self.branch5x5(x)
+        out_pool = self.branch_pool(x)
+
+        out = torch.cat([out1x1, out3x3, out5x5, out_pool], dim=1)
+        # 沿指定维度拼接张量。它可以将多个张量按照指定维度连接起来。
+        return out
 
 #########################
 ### Residual Networks ###
 #########################
-# self.conv11_resblcok = nn.Conv3d(16, 16, (5, 9, 9), stride=(1, 1, 1), padding=(2, 4, 4))
-# self.resblcok_activation = torch.nn.PReLU()
-# self.conv12_resblcok = nn.Conv3d(16, 16, (5, 9, 9), stride=(1, 1, 1), padding=(2, 4, 4))
-# self.resblcok_pool = nn.MaxPool3d(kernel_size=2, stride=2)
 class ResidualBlock(nn.Module):
     def __init__(self, channels,kernel_size,padding,stride):
         super(ResidualBlock, self).__init__()
@@ -201,46 +235,48 @@ class Net(nn.Module):
         self.conv11_bn = nn.BatchNorm3d(16)  # 标准化
         self.conv11_activation = torch.nn.PReLU()
         self.rblock11=ResidualBlock(channels=16,kernel_size=5,padding=(2, 2, 2),stride=(1, 1, 1))
+        self.inception11=InceptionModule(in_channels=16,out_channels=4)
 
         self.conv12 = nn.Conv3d(16, 16, (4, 9, 9), stride=(1, 1, 1))
         self.conv12_bn = nn.BatchNorm3d(16)
         self.conv12_activation = torch.nn.PReLU()
         self.rblock12=ResidualBlock(channels=16,kernel_size=5,padding=(2, 2, 2),stride=(1, 1, 1))
+        self.inception12=InceptionModule(in_channels=16,out_channels=4)
+
 
         self.conv21 = nn.Conv3d(16, 32, (3, 7, 7), stride=(1, 1, 1))
         self.conv21_bn = nn.BatchNorm3d(32)
         self.conv21_activation = torch.nn.PReLU()
         self.rblock21=ResidualBlock(channels=32,kernel_size=5,padding=(2, 2, 2),stride=(1, 1, 1))
+        self.inception21=InceptionModule(in_channels=32,out_channels=8)
+
 
         self.conv22 = nn.Conv3d(32, 32, (3, 7, 7), stride=(1, 1, 1))
         self.conv22_bn = nn.BatchNorm3d(32)
         self.conv22_activation = torch.nn.PReLU()
         self.rblock22=ResidualBlock(channels=32,kernel_size=5,padding=(2, 2, 2),stride=(1, 1, 1))
+        self.inception22=InceptionModule(in_channels=32,out_channels=8)
+
 
         self.conv31 = nn.Conv3d(32, 64, (3, 5, 5), stride=(1, 1, 1))
         self.conv31_bn = nn.BatchNorm3d(64)
         self.conv31_activation = torch.nn.PReLU()
         self.rblock31=ResidualBlock(channels=64,kernel_size=5,padding=(2, 2, 2),stride=(1, 1, 1))
+        self.inception31=InceptionModule(in_channels=64,out_channels=16)
+
 
         self.conv32 = nn.Conv3d(64, 64, (3, 5, 5), stride=(1, 1, 1))
         self.conv32_bn = nn.BatchNorm3d(64)
         self.conv32_activation = torch.nn.PReLU()
         self.rblock32=ResidualBlock(channels=64,kernel_size=5,padding=(2, 2, 2),stride=(1, 1, 1))
+        self.inception32=InceptionModule(in_channels=64,out_channels=16)
+
 
         self.conv41 = nn.Conv3d(64, 128, (3, 3, 3), stride=(1, 1, 1))
         self.conv41_bn = nn.BatchNorm3d(128)
         self.conv41_activation = torch.nn.PReLU()
         self.rblock41=ResidualBlock(channels=128,kernel_size=5,padding=(2, 2, 2),stride=(1, 1, 1))
-
-        # # 第一3D卷积
-        # self.conv11 = nn.Conv3d(1, 16, (5, 9, 9), stride=(1, 1, 1), padding=(2, 4, 4))
-        # self.conv11_bn = nn.BatchNorm3d(16)  # 标准化
-        # self.conv11_activation = torch.nn.PReLU()
-        # # 第一3D残差
-        # self.conv11_resblcok = nn.Conv3d(16, 16, (5, 9, 9), stride=(1, 1, 1), padding=(2, 4, 4))
-        # self.resblcok_activation = torch.nn.PReLU()
-        # self.conv12_resblcok = nn.Conv3d(16, 16, (5, 9, 9), stride=(1, 1, 1), padding=(2, 4, 4))
-        # self.resblcok_pool = nn.MaxPool3d(kernel_size=2, stride=2)
+        self.inception41=InceptionModule(in_channels=128,out_channels=32)
 
 
         # Fully-connected
@@ -259,19 +295,36 @@ class Net(nn.Module):
         W:数据的宽度
         """
         x = self.conv11_activation(self.conv11_bn(self.conv11(x)))  #第一层卷积
-        x=self.rblock11(x)#第一层残差
+        x = self.rblock11(x)#第一层残差
+        x = self.inception11(x)
+
+        # x =  self.conv12(x)
+        # x = self.conv12_bn(x)
+        # x=self.conv12_activation(x)
         x = self.conv12_activation(self.conv12_bn(self.conv12(x)))  #第二层卷积
         x=self.rblock12(x)#第二层残差
+        x = self.inception12(x)
+
         x = self.conv21_activation(self.conv21_bn(self.conv21(x)))  #第三层卷积
         x=self.rblock21(x)#第三层残差
+        x = self.inception21(x)
+
         x = self.conv22_activation(self.conv22_bn(self.conv22(x)))  #第四层卷积
         x=self.rblock22(x)#第四层残差
+        x = self.inception22(x)
+
         x = self.conv31_activation(self.conv31_bn(self.conv31(x)))  #第五层卷积
         x=self.rblock31(x)#第五层残差
+        x = self.inception31(x)
+
         x = self.conv32_activation(self.conv32_bn(self.conv32(x)))  #第六层卷积
         x=self.rblock32(x)#第六层残差
+        x = self.inception32(x)
+
         x = self.conv41_activation(self.conv41_bn(self.conv41(x)))  #第七层卷积
         x=self.rblock41(x)#第七层残差
+        x = self.inception41(x)
+
         x = x.view(-1, 128 * 4 * 6 * 2)
         x = self.fc1_bn(self.fc1(x))
         x = torch.nn.functional.normalize(x, p=2, dim=1, eps=1e-12)
